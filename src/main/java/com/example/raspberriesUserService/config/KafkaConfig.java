@@ -15,6 +15,7 @@ import org.springframework.kafka.listener.ContainerProperties;
 import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
 import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.kafka.support.serializer.JsonDeserializer;
+import org.springframework.util.backoff.ExponentialBackOff;
 import org.springframework.util.backoff.FixedBackOff;
 
 import java.util.HashMap;
@@ -26,7 +27,7 @@ public class KafkaConfig {
     @Value("${spring.kafka.bootstrap-servers}")
     private String bootstrapServers;
     @Bean
-    public ConsumerFactory<String, UserRegisteredEvent> consumerFactory() {
+    public ConsumerFactory<Long, Object> consumerFactory() {
         Map<String, Object> props = new HashMap<>();
         props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG,bootstrapServers);
         props.put(ConsumerConfig.GROUP_ID_CONFIG,"user-service-group");
@@ -41,15 +42,15 @@ public class KafkaConfig {
         return new DefaultKafkaConsumerFactory<>(props);
     }
     @Bean
-    public ConcurrentKafkaListenerContainerFactory<String, UserRegisteredEvent> kafkaListenerContainerFactory(KafkaTemplate<?, ?> kafkaTemplate) {
-        ConcurrentKafkaListenerContainerFactory<String, UserRegisteredEvent> factory = new ConcurrentKafkaListenerContainerFactory<>();
+    public ConcurrentKafkaListenerContainerFactory<Long, Object> kafkaListenerContainerFactory(KafkaTemplate<?, ?> kafkaTemplate) {
+        ConcurrentKafkaListenerContainerFactory<Long, Object> factory = new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(consumerFactory());
         factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL_IMMEDIATE);
         factory.setConcurrency(4);
         factory.setBatchListener(true);
         factory.setCommonErrorHandler(new DefaultErrorHandler(
                 new DeadLetterPublishingRecoverer(kafkaTemplate),
-                new FixedBackOff(500,3)
+                new ExponentialBackOff(400,2)
         ));
         return factory;
     }
